@@ -78,7 +78,7 @@ def get_parser():
 	parser.add_argument("--batch_size", type=int, default=1, help="Batch size")
 	parser.add_argument("--num_beams", type=int, default=4, help="Batch size")
 	parser.add_argument("--model_path", default="allenai/led-large-16384-arxiv", 
-		choices=['allenai/led-large-16384-arxiv', 'allenai/led-large-16384', 't5-small', 't5-base'], help="Model to evaluate")
+		choices=['allenai/led-large-16384-arxiv', 'allenai/led-large-16384', 't5-small', 't5-base', 't5-large'], help="Model to evaluate")
 	return parser
 
 def get_model(model_path):
@@ -109,7 +109,6 @@ if __name__=="__main__":
 		shuffle=False, collate_fn=SummarizationDatasetTest.collate_fn)
 
 	print("Setting up the rouge metric...")
-	# rouge = datasets.load_metric('rouge')
 	rouge = Rouge(variants=["L", 2], multiref="average")
 
 	counter = 0
@@ -131,7 +130,6 @@ if __name__=="__main__":
 
 			predictions = tokenizer.batch_decode(generated_ids.tolist(), skip_special_tokens=True)
 			references = [tokenizer.batch_decode(summary_ids, skip_special_tokens=True) for summary_ids in summaries_ids]
-			# results = rouge.add_batch(predictions=predictions, references=references[0])
 			out = json.dumps({"references":references[0], "prediction":predictions[0]})
 			f.write(out+'\n')
 
@@ -144,7 +142,7 @@ if __name__=="__main__":
 		f.write(out+'\n')
 
 '''
-python test-models.py --max_output_len 512 \
-	--output_file results/t5-small.jsonl \
-	--model_path t5-small
+python test-truncation.py --max_output_len 512 \
+	--output_file results/t5-large.jsonl \
+	--model_path t5-large --max_input_len 1024
 '''
