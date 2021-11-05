@@ -106,35 +106,41 @@ if __name__=="__main__":
 	test_dataset = dataset['test']
 	test_dataset = SummarizationDatasetTest(test_dataset, tokenizer, args)
 
-	test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size, 
+	test_dataloader = DataLoader(test_dataset, batch_size=1, 
 		shuffle=False, collate_fn=SummarizationDatasetTest.collate_fn)
 
 	print("Setting up the rouge metric...")
 	rouge = Rouge(variants=["L", 2], multiref="average")
-
+	pad_token_id = tokenizer.encode([tokenizer.pad_token])[0]
 	counter = 0
 	print("Start evaluating the test data...")
 	with open(args.output_file, 'w') as f:
 		for (texts_ids, summaries_ids) in tqdm(test_dataloader, total=len(test_dataloader)):
+			counter += 1
+			# get batches of tokens corresponding to the exact model_max_length
+			chunk_start = 0
+			chunk_end = tokenizer.model_max_length  # == 1024 for Bart
+			inputs_batch_lst = []
+			
+			while chunk_start < len(texts_ids[0]):
+				chunk_end = min(chunk_end, len(texts_ids[0]))
+				inputs_batch = torch.full((1, tokenizer.model_max_length), pad_token_id)
+				inputs_batch[0, 0:chunk_end-chunk_start] = texts_ids[0][chunk_start:chunk_end]
 
-			if 'bart' in args.model_path:
-				# get batches of tokens corresponding to the exact model_max_length
-				chunk_start = 0
-				chunk_end = tokenizer.model_max_length  # == 1024 for Bart
-				inputs_batch_lst = []
+				inputs_batch = torch.unsqueeze(inputs_batch, 0)
+				inputs_batch_lst.append(inputs_batch)
+				chunk_start += tokenizer.model_max_length  # == 1024 for Bart
+				chunk_end += tokenizer.model_max_length  # == 1024 for Bart
 
-				while chunk_start <= len(texts_ids[0]):
-					inputs_batch = texts_ids[0][chunk_start:chunk_end]  # get batch of n tokens
-					inputs_batch = torch.unsqueeze(inputs_batch, 0)
-					inputs_batch_lst.append(inputs_batch.to(device))
-					chunk_start += tokenizer.model_max_length  # == 1024 for Bart
-					chunk_end += tokenizer.model_max_length  # == 1024 for Bart
-				generated_ids = [model.generate(inputs, num_beams=args.num_beams, max_length=args.max_output_len, early_stopping=True) for inputs in inputs_batch_lst]
+			input_ids = torch.cat(inputs_batch_lst, dim=0)
+			input_ids = input_ids.squeeze(1)
+			input_ids = input_ids.to(device)
 
 			summary_batch_lst = []
-			for summary_id in generated_ids:
-				summary_batch = [tokenizer.decode(g, skip_special_tokens=True, clean_up_tokenization_spaces=False) for g in summary_id]
-				summary_batch_lst.append(summary_batch[0])
+			for i in range(0, len(input_ids), args.batch_size):
+				generated_ids = model.generate(input_ids[i:i+args.batch_size], num_beams=args.num_beams, max_length=args.max_output_len, early_stopping=True)
+				summary_batch = [tokenizer.decode(g, skip_special_tokens=True, clean_up_tokenization_spaces=False) for g in generated_ids]
+				summary_batch_lst.extend(summary_batch)
 			predictions = '\n'.join(summary_batch_lst)
 			references = [tokenizer.batch_decode(summary_ids, skip_special_tokens=True) for summary_ids in summaries_ids]
 
@@ -144,6 +150,7 @@ if __name__=="__main__":
 			predictions = predictions[0].split()
 			references = [ref.split() for ref in references[0]]
 			rouge.update(([predictions], [references]))
+
 		score = rouge.compute()
 		print(score)
 		out = json.dumps(score)
@@ -151,7 +158,7 @@ if __name__=="__main__":
 		f.flush()
 
 '''
-python test-chunking.py --max_output_len 100 \
-	--output_file results/bart-large-cnn-chunking.jsonl \
-	--model_path facebook/bart-large-cnn
+python test-chunking.py --max_output_len 120 \
+	--output_file results/t5-large-chunking.jsonl \
+	--model_path t5-large
 '''
