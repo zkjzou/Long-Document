@@ -58,7 +58,7 @@ class BookSum(datasets.GeneratorBasedBuilder):
         """Returns SplitGenerators."""
         ## TODO: Put the path to the booksum dataset and rename the train.jsonl, 
         ##       val.jsonl and test.jsonl to the appropriate file paths. 
-        path = "/home/ss2753/booksum/booksum_datasets"
+        path = "/Users/zkjzou/Desktop/Research/BookSum/BookSum Data 2"
         
         return [
             datasets.SplitGenerator(
@@ -84,13 +84,12 @@ class BookSum(datasets.GeneratorBasedBuilder):
                 document = "\n".join(d["text"])
                 summary = "\n".join(d["summary"])
 
-                id = d["chapter_path"] + '__' + d["summary_path"]
 
-                yield id, {
+                yield {
                     _DOCUMENT: document,
                     _SUMMARY: summary,
                 }
 
 if __name__ == '__main__':
     ## TODO: to test if the file works, change the path to this file. 
-    dataset = datasets.load_dataset('/home/ss2753/tune-LED/booksum_datasets.py', 'chapters')
+    dataset = datasets.load_dataset('/Users/zkjzou/Desktop/Research/BookSum/Long-Document/test-pretrianed-models/booksum_datasets.py', 'chapters')
